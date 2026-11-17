@@ -73,7 +73,7 @@ app/src/main/java/moe/hexzii/earpick/
 ```bash
 ./gradlew :app:assembleDebug          # app/build/outputs/apk/debug/app-debug.apk
 ./gradlew :app:testDebugUnitTest      # 协议、重组、会话、真实 UDP 集成测试
-./gradlew :app:assembleRelease        # R8 压缩，未签名
+./gradlew :app:assembleRelease        # R8 压缩，用调试签名
 ```
 
 集成测试在 JVM 内绑定 loopback UDP，模拟设备按真机格式切片发送一张真实 JPEG，并用 `ImageIO` 校验重组结果，不依赖模拟器。

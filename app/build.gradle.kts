@@ -26,6 +26,8 @@ android {
             versionNameSuffix = "-debug"
         }
         release {
+            // TODO: 用一个真实签名
+            signingConfig = signingConfigs.getByName("debug") // 使用调试签名签 release
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(
