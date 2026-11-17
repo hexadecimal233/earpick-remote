@@ -60,7 +60,7 @@ class EarpickSessionTest {
 
             assertArrayEquals(jpeg, withTimeout(2_000) { frameDeferred.await() })
             withTimeout(2_000) {
-                session.state.first { it.phase == LinkPhase.Streaming && it.batteryAdc == 73 }
+                session.state.first { it.phase == LinkPhase.Streaming && it.batteryPercent == 73 }
             }
         }
     }

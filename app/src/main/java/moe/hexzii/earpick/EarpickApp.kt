@@ -4,7 +4,6 @@ import android.app.Application
 import android.content.Context
 import moe.hexzii.earpick.capture.SnapshotStore
 import moe.hexzii.earpick.data.AppSettings
-import moe.hexzii.earpick.link.DeviceWifiConnector
 
 class EarpickApp : Application() {
     val container: AppContainer by lazy(LazyThreadSafetyMode.SYNCHRONIZED) {
@@ -17,6 +16,5 @@ class AppContainer(context: Context) {
     private val appContext = context.applicationContext
 
     val settings = AppSettings(appContext)
-    val wifi = DeviceWifiConnector(appContext)
     val snapshots = SnapshotStore(appContext.contentResolver)
 }

@@ -68,7 +68,7 @@ class UdpIntegrationTest {
                 assertEquals(480, decoded.height)
 
                 withTimeout(3_000) {
-                    session.state.first { it.deviceName == "zdeer earpick-3593" && it.batteryAdc == 73 }
+                    session.state.first { it.deviceName == "zdeer earpick-3593" && it.batteryPercent == 73 }
                 }
 
                 session.setLed(true)

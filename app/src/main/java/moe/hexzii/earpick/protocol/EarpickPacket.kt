@@ -25,7 +25,7 @@ data class VideoChunk(
     val sequence: Int,
     val width: Int,
     val height: Int,
-    val batteryAdc: Int,
+    val batteryPercent: Int,
     /** End offset of this packet's payload inside the current frame (0x0C). */
     val byteOffset: Int,
     /** 1-based packet index inside the current frame (0x30). */
@@ -94,7 +94,7 @@ object EarpickPacket {
             sequence = u16(packet, 0x03),
             width = u16(packet, 0x1C),
             height = u16(packet, 0x1E),
-            batteryAdc = u32(packet, 0x10),
+            batteryPercent = u32(packet, 0x10).coerceIn(0, 100),
             byteOffset = u32(packet, 0x0C),
             framePacketIndex = u16(packet, 0x30),
             payloadOffset = EarpickProtocol.VIDEO_HEADER_SIZE,

@@ -1,9 +1,7 @@
 package moe.hexzii.earpick.ui
 
 import android.graphics.Bitmap
-import android.util.Log
 import android.graphics.BitmapFactory
-import android.net.Network
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.lifecycle.ViewModel
@@ -17,11 +15,9 @@ import moe.hexzii.earpick.capture.SnapshotStore
 import moe.hexzii.earpick.data.AppSettings
 import moe.hexzii.earpick.data.Settings
 import moe.hexzii.earpick.link.AndroidUdpTransport
-import moe.hexzii.earpick.link.DeviceWifiConnector
 import moe.hexzii.earpick.link.EarpickSession
 import moe.hexzii.earpick.link.LinkPhase
 import moe.hexzii.earpick.link.LinkState
-import moe.hexzii.earpick.link.WifiUnavailableException
 import moe.hexzii.earpick.protocol.EarpickProtocol
 import java.io.IOException
 import java.net.InetAddress
@@ -44,7 +40,6 @@ import kotlinx.coroutines.withContext
 enum class UiPhase {
     Idle,
     Starting,
-    ConnectingWifi,
     WaitingDevice,
     Streaming,
     Error,
@@ -52,9 +47,7 @@ enum class UiPhase {
 
 sealed interface UiError {
     data object PermissionDenied : UiError
-    data object WifiUnavailable : UiError
     data object Network : UiError
-    data object WifiLost : UiError
     data class Unknown(val detail: String) : UiError
 }
 
@@ -78,7 +71,6 @@ data class UiState(
 
 class EarpickViewModel(
     private val settingsStore: AppSettings,
-    private val wifi: DeviceWifiConnector,
     private val snapshots: SnapshotStore,
 ) : ViewModel() {
     private val _ui = MutableStateFlow(UiState())
@@ -90,7 +82,6 @@ class EarpickViewModel(
     private var currentSettings = Settings()
     private var connectJob: Job? = null
     private var connectAttempt = 0
-    private var preferredViaWifi = true
     private var session: EarpickSession? = null
     private var sessionScope: CoroutineScope? = null
     private val lastJpeg = AtomicReference<ByteArray?>(null)
@@ -102,23 +93,14 @@ class EarpickViewModel(
                 _ui.update { it.copy(settings = value) }
             }
         }
-        viewModelScope.launch {
-            wifi.lost.collect {
-                if (session != null) {
-                    disconnectInternal()
-                    _ui.update { it.copy(phase = UiPhase.Error, error = UiError.WifiLost) }
-                }
-            }
-        }
     }
 
-    fun connect(viaDeviceWifi: Boolean) {
+    fun connect() {
         if (session != null || connectJob?.isActive == true) return
-        preferredViaWifi = viaDeviceWifi
         val attempt = ++connectAttempt
         _ui.update {
             it.copy(
-                phase = if (viaDeviceWifi) UiPhase.ConnectingWifi else UiPhase.Starting,
+                phase = UiPhase.Starting,
                 frame = null,
                 error = null,
                 decodeFailures = 0,
@@ -127,17 +109,9 @@ class EarpickViewModel(
 
         connectJob = viewModelScope.launch {
             try {
-                val network = if (viaDeviceWifi) {
-                    _ui.update { it.copy(phase = UiPhase.ConnectingWifi) }
-                    wifi.connect(currentSettings.ssidPrefix.ifBlank { Settings().ssidPrefix })
-                } else {
-                    null
-                }
-                startSession(network, attempt)
+                startSession(attempt)
             } catch (e: CancellationException) {
                 throw e
-            } catch (_: WifiUnavailableException) {
-                failConnect(attempt, UiError.WifiUnavailable)
             } catch (_: SecurityException) {
                 failConnect(attempt, UiError.PermissionDenied)
             } catch (_: IOException) {
@@ -150,17 +124,7 @@ class EarpickViewModel(
 
     fun retry() {
         disconnectInternal()
-        connect(preferredViaWifi)
-    }
-
-    /** Debug-only entry point for automated tests: skip Wi-Fi and use a custom endpoint. */
-    fun connectDev(host: String, port: Int) {
-        currentSettings = currentSettings.copy(
-            devTargetEnabled = true,
-            devHost = host,
-            devPort = port,
-        )
-        connect(viaDeviceWifi = false)
+        connect()
     }
 
     fun onHostStopped() {
@@ -212,21 +176,15 @@ class EarpickViewModel(
         viewModelScope.launch { settingsStore.update { next } }
     }
 
-    private suspend fun startSession(network: Network?, attempt: Int) {
+    private suspend fun startSession(attempt: Int) {
         if (attempt != connectAttempt) return
 
         val (host, port) = resolveEndpoint()
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO + CoroutineName("earpick-session"))
-        // Socket creation/binding is IO; never do it on the main thread.
+        // Socket creation is IO; never do it on the main thread.
         val newSession = withContext(Dispatchers.IO) {
             val address = InetAddress.getByName(host)
-            val localAddress = network?.let { wifi.localIpv4(it) }
-            val transport = AndroidUdpTransport(address, port, network, localAddress)
-            EarpickSession(
-                transport = transport,
-                scope = scope,
-                logger = { if (BuildConfig.DEBUG) Log.d("EarpickLink", it) },
-            )
+            EarpickSession(AndroidUdpTransport(address, port), scope)
         }
 
         if (attempt != connectAttempt) {
@@ -274,7 +232,6 @@ class EarpickViewModel(
                 lastJpeg.set(jpeg)
                 val bitmap = decodeJpeg(jpeg)
                 if (bitmap == null) {
-                    Log.w("EarpickLink", "JPEG decode failed (${jpeg.size} bytes)")
                     _ui.update { it.copy(decodeFailures = it.decodeFailures + 1) }
                 } else {
                     _ui.update { it.copy(frame = bitmap.asImageBitmap()) }
@@ -289,7 +246,6 @@ class EarpickViewModel(
     private fun failConnect(attempt: Int, error: UiError) {
         if (attempt != connectAttempt) return
         connectJob = null
-        wifi.release()
         _ui.update { it.copy(phase = UiPhase.Error, error = error) }
     }
 
@@ -302,7 +258,6 @@ class EarpickViewModel(
         sessionScope?.cancel()
         sessionScope = null
         lastJpeg.set(null)
-        wifi.release()
     }
 
     private fun resolveEndpoint(): Pair<String, Int> {
@@ -333,7 +288,6 @@ class EarpickViewModel(
                 val app = this[ViewModelProvider.AndroidViewModelFactory.APPLICATION_KEY] as EarpickApp
                 EarpickViewModel(
                     settingsStore = app.container.settings,
-                    wifi = app.container.wifi,
                     snapshots = app.container.snapshots,
                 )
             }

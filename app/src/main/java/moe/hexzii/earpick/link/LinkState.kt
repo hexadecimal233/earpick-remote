@@ -15,7 +15,7 @@ enum class LinkFailure {
 data class LinkState(
     val phase: LinkPhase = LinkPhase.WaitingForDevice,
     val deviceName: String? = null,
-    val batteryAdc: Int? = null,
+    val batteryPercent: Int? = null,
     val width: Int = 0,
     val height: Int = 0,
     val fps: Int = 0,

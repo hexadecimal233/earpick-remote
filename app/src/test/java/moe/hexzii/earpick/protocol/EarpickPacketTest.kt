@@ -30,14 +30,14 @@ class EarpickPacketTest {
     @Test
     fun `video header exposes geometry battery and clamped payload`() {
         val payload = ByteArray(10) { it.toByte() }
-        val packet = TestPackets.video(payload, sequence = 9, batteryAdc = 73)
+        val packet = TestPackets.video(payload, sequence = 9, batteryPercent = 73)
 
         val chunk = requireNotNull(EarpickPacket.parseVideo(packet))
 
         assertEquals(9, chunk.sequence)
         assertEquals(640, chunk.width)
         assertEquals(480, chunk.height)
-        assertEquals(73, chunk.batteryAdc)
+        assertEquals(73, chunk.batteryPercent)
         assertEquals(payload.size, chunk.byteOffset)
         assertEquals(1, chunk.framePacketIndex)
         assertEquals(payload.size, chunk.payloadLength)

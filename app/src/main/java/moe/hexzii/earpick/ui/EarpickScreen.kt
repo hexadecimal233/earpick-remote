@@ -100,6 +100,7 @@ import androidx.core.content.ContextCompat
 import androidx.core.view.WindowCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import moe.hexzii.earpick.BuildConfig
 import moe.hexzii.earpick.R
 import moe.hexzii.earpick.link.LinkPhase
 import moe.hexzii.earpick.link.LinkState
@@ -113,27 +114,27 @@ fun EarpickRoute(viewModel: EarpickViewModel = viewModel(factory = EarpickViewMo
     val activity = context.findActivity()
     val snackbarHostState = remember { SnackbarHostState() }
     var settingsOpen by rememberSaveable { mutableStateOf(false) }
-    var pendingViaWifi by remember { mutableStateOf<Boolean?>(null) }
 
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission(),
     ) { granted ->
-        val viaWifi = pendingViaWifi
-        pendingViaWifi = null
         if (granted) {
-            if (viaWifi != null) viewModel.connect(viaWifi)
+            viewModel.connect()
         } else {
             viewModel.onLocalNetworkPermissionDenied()
         }
     }
 
-    val requestConnect: (Boolean) -> Unit = { viaDeviceWifi ->
+    val requestConnect: () -> Unit = {
         if (needsLocalNetworkPermission(context)) {
-            pendingViaWifi = viaDeviceWifi
             permissionLauncher.launch(Manifest.permission.ACCESS_LOCAL_NETWORK)
         } else {
-            viewModel.connect(viaDeviceWifi)
+            viewModel.connect()
         }
+    }
+
+    val openSettings: () -> Unit = {
+        if (BuildConfig.DEBUG) settingsOpen = true else context.openAppSettings()
     }
 
     val snapshotSavedMessage = stringResource(R.string.snapshot_saved)
@@ -189,7 +190,7 @@ fun EarpickRoute(viewModel: EarpickViewModel = viewModel(factory = EarpickViewMo
                     onToggleMirror = viewModel::toggleMirror,
                     onSnapshot = viewModel::saveSnapshot,
                     onDisconnect = viewModel::disconnect,
-                    onOpenSettings = { settingsOpen = true },
+                    onOpenSettings = openSettings,
                 )
             } else {
                 ConnectPanel(
@@ -197,7 +198,8 @@ fun EarpickRoute(viewModel: EarpickViewModel = viewModel(factory = EarpickViewMo
                     onConnect = requestConnect,
                     onCancel = viewModel::disconnect,
                     onRetry = viewModel::retry,
-                    onOpenSettings = { settingsOpen = true },
+                    onOpenWifiSettings = { context.openWifiSettings() },
+                    onOpenSettings = openSettings,
                     onOpenAppSettings = { context.openAppSettings() },
                 )
             }
@@ -234,6 +236,13 @@ private tailrec fun Context.findActivity(): Activity? = when (this) {
     else -> null
 }
 
+private fun Context.openWifiSettings() {
+    startActivity(
+        Intent(AndroidSettings.ACTION_WIFI_SETTINGS)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+    )
+}
+
 private fun Context.openAppSettings() {
     startActivity(
         Intent(
@@ -246,9 +255,10 @@ private fun Context.openAppSettings() {
 @Composable
 private fun ConnectPanel(
     state: UiState,
-    onConnect: (Boolean) -> Unit,
+    onConnect: () -> Unit,
     onCancel: () -> Unit,
     onRetry: () -> Unit,
+    onOpenWifiSettings: () -> Unit,
     onOpenSettings: () -> Unit,
     onOpenAppSettings: () -> Unit,
 ) {
@@ -306,7 +316,7 @@ private fun ConnectPanel(
 
             Spacer(Modifier.height(28.dp))
 
-            if (state.phase == UiPhase.ConnectingWifi || state.phase == UiPhase.Starting) {
+            if (state.phase == UiPhase.Starting) {
                 Surface(
                     shape = RoundedCornerShape(20.dp),
                     color = MaterialTheme.colorScheme.surfaceVariant,
@@ -322,13 +332,7 @@ private fun ConnectPanel(
                             strokeWidth = 2.dp,
                         )
                         Text(
-                            text = stringResource(
-                                if (state.phase == UiPhase.ConnectingWifi) {
-                                    R.string.connect_waiting_wifi
-                                } else {
-                                    R.string.connect_preparing
-                                },
-                            ),
+                            text = stringResource(R.string.connect_preparing),
                             style = MaterialTheme.typography.bodyMedium,
                             modifier = Modifier.weight(1f),
                         )
@@ -338,8 +342,15 @@ private fun ConnectPanel(
                     }
                 }
             } else {
+                Text(
+                    text = stringResource(R.string.connect_wifi_hint),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center,
+                )
+                Spacer(Modifier.height(12.dp))
                 Button(
-                    onClick = { onConnect(true) },
+                    onClick = onConnect,
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(56.dp),
@@ -347,13 +358,13 @@ private fun ConnectPanel(
                     Icon(Icons.Outlined.Wifi, contentDescription = null)
                     Spacer(Modifier.width(10.dp))
                     Text(
-                        text = stringResource(R.string.connect_primary),
+                        text = stringResource(R.string.connect_direct),
                         style = MaterialTheme.typography.titleMedium,
                     )
                 }
                 Spacer(Modifier.height(4.dp))
-                TextButton(onClick = { onConnect(false) }) {
-                    Text(stringResource(R.string.connect_manual))
+                TextButton(onClick = onOpenWifiSettings) {
+                    Text(stringResource(R.string.open_wifi_settings))
                 }
             }
 
@@ -550,6 +561,15 @@ private fun WaitingLayer(state: UiState) {
             textAlign = TextAlign.Center,
         )
         Spacer(Modifier.height(14.dp))
+        if (state.link.packetsReceived == 0L) {
+            Text(
+                text = stringResource(R.string.waiting_no_rx_hint),
+                color = Color(0xFFFFC857),
+                style = MaterialTheme.typography.bodySmall,
+                textAlign = TextAlign.Center,
+            )
+            Spacer(Modifier.height(8.dp))
+        }
         if (state.link.packetsReceived > 0 && state.link.videoPacketsReceived == 0L) {
             Text(
                 text = stringResource(R.string.waiting_no_video_hint),
@@ -559,19 +579,21 @@ private fun WaitingLayer(state: UiState) {
             )
             Spacer(Modifier.height(8.dp))
         }
-        Text(
-            text = stringResource(
-                R.string.diag_format,
-                state.link.packetsReceived,
-                state.link.videoPacketsReceived,
-                state.link.framesReceived,
-                state.link.bufferedBytes,
-                state.decodeFailures,
-            ),
-            color = Color.White.copy(alpha = 0.45f),
-            style = MaterialTheme.typography.labelSmall,
-            textAlign = TextAlign.Center,
-        )
+        if (BuildConfig.DEBUG) {
+            Text(
+                text = stringResource(
+                    R.string.diag_format,
+                    state.link.packetsReceived,
+                    state.link.videoPacketsReceived,
+                    state.link.framesReceived,
+                    state.link.bufferedBytes,
+                    state.decodeFailures,
+                ),
+                color = Color.White.copy(alpha = 0.45f),
+                style = MaterialTheme.typography.labelSmall,
+                textAlign = TextAlign.Center,
+            )
+        }
     }
 }
 
@@ -590,11 +612,8 @@ private fun StatsRow(state: UiState) {
         } else if (state.frame != null) {
             StatPill(stringResource(R.string.waiting_reconnecting))
         }
-        link.batteryAdc?.let { adc ->
-            StatPill(
-                text = stringResource(R.string.chip_adc, adc),
-                description = stringResource(R.string.chip_adc_description),
-            )
+        link.batteryPercent?.let { percent ->
+            StatPill(text = stringResource(R.string.chip_battery, percent))
         }
     }
 }
@@ -756,11 +775,6 @@ private fun ErrorCard(
                         Text(stringResource(R.string.control_retry))
                     }
                 }
-                if (error == UiError.WifiUnavailable) {
-                    TextButton(onClick = onOpenSettings) {
-                        Text(stringResource(R.string.settings))
-                    }
-                }
                 if (onDismiss != null) {
                     TextButton(onClick = onDismiss) {
                         Text(stringResource(R.string.control_disconnect))
@@ -774,9 +788,7 @@ private fun ErrorCard(
 @Composable
 private fun errorMessage(error: UiError): String = when (error) {
     UiError.PermissionDenied -> stringResource(R.string.error_permission_body)
-    UiError.WifiUnavailable -> stringResource(R.string.error_wifi_unavailable)
     UiError.Network -> stringResource(R.string.error_network)
-    UiError.WifiLost -> stringResource(R.string.error_wifi_lost)
     is UiError.Unknown -> stringResource(R.string.error_unknown, error.detail)
 }
 
@@ -865,6 +877,7 @@ private fun ConnectPanelPreview() {
             onConnect = {},
             onCancel = {},
             onRetry = {},
+            onOpenWifiSettings = {},
             onOpenSettings = {},
             onOpenAppSettings = {},
         )
@@ -881,7 +894,7 @@ private fun ViewerPanelPreview() {
                 link = LinkState(
                     phase = LinkPhase.Streaming,
                     deviceName = "zdeer earpick-3593",
-                    batteryAdc = 73,
+                    batteryPercent = 73,
                     width = 640,
                     height = 480,
                     fps = 20,

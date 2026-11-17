@@ -8,7 +8,7 @@ object TestPackets {
         payload: ByteArray,
         sequence: Int,
         frameIndex: Int = 1,
-        batteryAdc: Int = 73,
+        batteryPercent: Int = 73,
         width: Int = 640,
         height: Int = 480,
         byteOffset: Int = -1,
@@ -21,7 +21,7 @@ object TestPackets {
         putU16(packet, 0x05, packet.size)
         packet[0x07] = 0x03
         putU32(packet, 0x0C, if (byteOffset > 0) byteOffset else payload.size)
-        putU32(packet, 0x10, batteryAdc)
+        putU32(packet, 0x10, batteryPercent)
         putU16(packet, 0x1C, width)
         putU16(packet, 0x1E, height)
         putU16(packet, 0x30, frameIndex)

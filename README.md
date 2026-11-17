@@ -4,9 +4,9 @@
 
 ## 功能
 
-- 用 `WifiNetworkSpecifier` 申请设备热点，无需定位权限，网络仅对本应用可见
+- 手动加入设备热点后直接连接；不调用 `WifiNetworkSpecifier`，避免跨 OEM 的弹窗/绑定差异
 - 1 Hz 心跳注册；UDP 流按 JPEG `SOI/EOI` 切帧，丢包丢弃半帧，支持 16 位序号回绕
-- 实时画面 + 帧率 / 带宽 / 电池 ADC 原始值
+- 实时画面 + 帧率 / 带宽 / 电量百分比
 - 补光灯、镜像、拍照（`Pictures/Earpick`，MediaStore，无需存储权限）
 - 双指缩放、双击复位；竖屏底部控制条，横屏右侧控制栏
 - Android 17 `ACCESS_LOCAL_NETWORK` 运行时权限适配
@@ -48,7 +48,7 @@ sequenceDiagram
 | `0x30`      | 帧内序号                     |
 | `0x32`      | 序号 + 1（**不是**分片总数） |
 | `0x34`      | 本片负载长度（≤1400）        |
-| `0x10`      | 电池 ADC 原始值（实测 73）   |
+| `0x10`      | 电量百分比 0–100（实测 73/99） |
 | `0x1C/0x1E` | 宽 / 高（640×480）           |
 | `0x36`      | JPEG 字节                    |
 
@@ -59,7 +59,7 @@ sequenceDiagram
 ```
 app/src/main/java/moe/hexzii/earpick/
 ├── protocol/       纯 JVM：包编解码、MJPEG 重组（可单测）
-├── link/           传输接缝、会话循环、Wi-Fi 热点申请
+├── link/           传输接缝、UDP 会话循环
 ├── data/           DataStore 设置
 ├── capture/        MediaStore 快照
 ├── ui/             Compose UI、ViewModel、主题、设置面板
@@ -86,11 +86,11 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 
 ## 真机使用
 
-1. 打开采耳仪电源，手机打开本应用。
-2. 点「连接设备热点」，在系统弹窗中确认 `zdeer earpick-*`。
+1. 打开采耳仪电源，在系统 Wi-Fi 设置中加入 `zdeer earpick-*`（开放网络）。应用首页的「打开 Wi-Fi 设置」可以直接跳转。
+2. 回到应用，点「已连接热点，直接开始」。
 3. Android 17+ 首次会请求「附近的设备」权限（本地网络）。
-4. 设备应答心跳后自动出图。找不到热点时，在设置里把 SSID 前缀改为 `UDU`（UDU 品牌设备）。
-5. 如果设备有回包但没有视频，先强制停止官方 App/其他客户端并重启采耳仪：该固件可能只向先注册的客户端推流。
+4. 设备应答心跳后自动出图。
+5. 该固件只服务一个客户端。官方 App、旧 `zdeer-client`、另一台手机都可能占住推流；出现「有回包但无视频」时先关闭它们并重启采耳仪。
 
 设备热点是**开放网络**，附近的人也能接入并收到同一路画面；这是固件限制，客户端只能提示，无法修复。
 
@@ -106,17 +106,9 @@ python3 tools/fake_device.py           # 0.0.0.0:40000，默认发送 tools/test
 
 脚本按真机格式回复心跳、20 fps 分片推流，并打印收到的补光/镜像/停流指令。
 
-调试构建也可以直接从命令行指定端点，跳过设置页：
-
-```bash
-adb shell am start -n moe.hexzii.earpick.debug/moe.hexzii.earpick.MainActivity \
-  --es moe.hexzii.earpick.dev_host 192.168.1.9 \
-  --ei moe.hexzii.earpick.dev_port 40000
-```
-
 等待页会显示 `接收 / 视频 / JPEG / 缓冲 / 解码失败` 计数：
 
-- 接收 0：报文没进应用，优先查网络绑定/VPN/热点。
+- 接收 0：检查是否已加入热点、本地网络权限，以及官方 App/旧客户端是否占住推流。
 - 有接收、无视频：报文类型或端口不对。
 - 有视频、无 JPEG：分帧字段/丢包处理有问题。
 - 有 JPEG、解码失败：JPEG 格式或解码器问题。
@@ -126,17 +118,16 @@ adb shell am start -n moe.hexzii.earpick.debug/moe.hexzii.earpick.MainActivity \
 | 权限                   | 用途                                   |
 | ---------------------- | -------------------------------------- |
 | `INTERNET`             | UDP 套接字                             |
-| `ACCESS_NETWORK_STATE` | 申请并绑定 app 级 Wi-Fi 网络           |
 | `ACCESS_LOCAL_NETWORK` | Android 17+ 访问局域网设备，运行时授予 |
 
-不申请定位、存储、相机或联网上传权限。快照写入 `MediaStore` 的 `Pictures/Earpick`。热点由系统弹窗授权，连接仅限本应用；断开或退出时释放网络请求。
+不申请定位、存储、相机或联网上传权限。快照写入 `MediaStore` 的 `Pictures/Earpick`。热点由用户在系统设置中手动加入。
 
 若要上架 Google Play，广域局域网访问需要在 Play Console 做 LAN 访问声明（2027-08-25 起强制）；本项目定位为个人互操作工具。
 
 ## 已知限制
 
 - `0x05` 镜像只有切换指令，设备不回传实际状态，UI 为乐观状态。
-- 电池只有 ADC 原始值，换算公式未知，因此显示 `ADC n`。
+- 固件只服务一个客户端；切换官方 App/旧客户端/手机后，需要重启采耳仪让它重新注册。
 - 仅拍照，不录音/录像；未实现多客户端或自动重连策略（心跳会持续尝试，重试按钮重建会话）。
 - 实测固件为 640×480 baseline JPEG；其他分辨率按包头字段显示，未验证。
-- 按当前机器资源约束未启动模拟器，也未连接真机：Compose 界面只做了编译与 Preview 校验，`WifiNetworkSpecifier` 系统弹窗与 `ACCESS_LOCAL_NETWORK` 授权流程需要在真机上确认。
+- 不自动切换 Wi-Fi；热点必须由用户在系统设置中手动加入。

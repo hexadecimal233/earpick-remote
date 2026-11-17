@@ -47,15 +47,13 @@ fun SettingsSheet(
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val scrollState = rememberScrollState()
 
-    var prefix by remember(settings) { mutableStateOf(settings.ssidPrefix) }
     var devEnabled by remember(settings) { mutableStateOf(settings.devTargetEnabled) }
     var host by remember(settings) { mutableStateOf(settings.devHost) }
     var port by remember(settings) { mutableStateOf(settings.devPort.toString()) }
 
     val portValue = port.toIntOrNull()
-    val valid = prefix.isNotBlank() &&
-        (!BuildConfig.DEBUG || !devEnabled ||
-            (host.isNotBlank() && portValue != null && portValue in 1..65535))
+    val valid = !BuildConfig.DEBUG || !devEnabled ||
+        (host.isNotBlank() && portValue != null && portValue in 1..65535)
 
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState) {
         Column(
@@ -70,15 +68,6 @@ fun SettingsSheet(
             Text(
                 text = stringResource(R.string.settings),
                 style = MaterialTheme.typography.titleLarge,
-            )
-
-            OutlinedTextField(
-                value = prefix,
-                onValueChange = { prefix = it },
-                label = { Text(stringResource(R.string.settings_ssid_prefix)) },
-                supportingText = { Text(stringResource(R.string.settings_ssid_help)) },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
             )
 
             if (BuildConfig.DEBUG) {
@@ -148,7 +137,6 @@ fun SettingsSheet(
                     onClick = {
                         onSave(
                             Settings(
-                                ssidPrefix = prefix.trim(),
                                 devTargetEnabled = devEnabled,
                                 devHost = host.trim(),
                                 devPort = portValue ?: Settings().devPort,
