@@ -18,6 +18,7 @@ class AndroidUdpTransport(
     address: InetAddress,
     port: Int,
     network: Network? = null,
+    localAddress: InetAddress? = null,
 ) : DatagramTransport {
     private val socket = DatagramSocket(null)
     private val target = InetSocketAddress(address, port)
@@ -26,7 +27,10 @@ class AndroidUdpTransport(
     init {
         socket.reuseAddress = true
         network?.bindSocket(socket)
-        socket.bind(InetSocketAddress(0))
+        // Bind to the camera network's IPv4 address when known. On phones that keep
+        // a concurrent primary Wi-Fi connection, this keeps inbound replies demuxed
+        // to the app-scoped network instead of the default interface.
+        socket.bind(if (localAddress != null) InetSocketAddress(localAddress, 0) else InetSocketAddress(0))
     }
 
     override fun send(payload: ByteArray) {

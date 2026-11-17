@@ -41,8 +41,22 @@ class EarpickSessionTest {
             }
 
             val jpeg = byteArrayOf(0xFF.toByte(), 0xD8.toByte(), 0x01, 0x02, 0x03, 0xFF.toByte(), 0xD9.toByte())
-            transport.push(TestPackets.video(jpeg.copyOfRange(0, 3), sequence = 1))
-            transport.push(TestPackets.video(jpeg.copyOfRange(3, jpeg.size), sequence = 2))
+            transport.push(
+                TestPackets.video(
+                    payload = jpeg.copyOfRange(0, 3),
+                    sequence = 1,
+                    frameIndex = 1,
+                    byteOffset = 3,
+                ),
+            )
+            transport.push(
+                TestPackets.video(
+                    payload = jpeg.copyOfRange(3, jpeg.size),
+                    sequence = 2,
+                    frameIndex = 2,
+                    byteOffset = jpeg.size,
+                ),
+            )
 
             assertArrayEquals(jpeg, withTimeout(2_000) { frameDeferred.await() })
             withTimeout(2_000) {

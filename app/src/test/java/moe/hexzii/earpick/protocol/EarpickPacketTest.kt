@@ -38,6 +38,8 @@ class EarpickPacketTest {
         assertEquals(640, chunk.width)
         assertEquals(480, chunk.height)
         assertEquals(73, chunk.batteryAdc)
+        assertEquals(payload.size, chunk.byteOffset)
+        assertEquals(1, chunk.framePacketIndex)
         assertEquals(payload.size, chunk.payloadLength)
         assertEquals(EarpickProtocol.VIDEO_HEADER_SIZE, chunk.payloadOffset)
         assertArrayEquals(payload, packet.copyOfRange(chunk.payloadOffset, chunk.payloadOffset + chunk.payloadLength))

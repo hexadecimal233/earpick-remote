@@ -173,16 +173,17 @@ class UdpIntegrationTest {
             var frameIndex = 1
             while (offset < jpeg.size) {
                 val length = minOf(1400, jpeg.size - offset)
+                offset += length
                 send(
                     destination,
                     TestPackets.video(
-                        payload = jpeg.copyOfRange(offset, offset + length),
+                        payload = jpeg.copyOfRange(offset - length, offset),
                         sequence = sequence,
                         frameIndex = frameIndex,
+                        byteOffset = offset,
                     ),
                 )
                 sequence = (sequence + 1) and 0xFFFF
-                offset += length
                 frameIndex++
             }
         }

@@ -13,19 +13,46 @@ class MjpegFramer(
     private var buffer = ByteArray(64 * 1024)
     private var size = 0
     private var lastSequence = -1
+    private var lastByteOffset = -1
+
+    /** Number of bytes currently waiting for a JPEG end marker. */
+    val bufferedBytes: Int get() = size
 
     fun reset() {
         size = 0
         lastSequence = -1
+        lastByteOffset = -1
     }
 
-    fun feed(source: ByteArray, offset: Int, length: Int, sequence: Int): List<ByteArray> {
+    /**
+     * @param byteOffset end offset of the payload inside the current frame (0x0C),
+     *   or 0/negative if the firmware does not populate it.
+     * @param framePacketIndex 1-based packet index inside the frame (0x30), or 0.
+     */
+    fun feed(
+        source: ByteArray,
+        offset: Int,
+        length: Int,
+        sequence: Int,
+        byteOffset: Int = -1,
+        framePacketIndex: Int = 0,
+    ): List<ByteArray> {
         if (length <= 0 || offset < 0 || offset + length > source.size) return emptyList()
 
-        if (lastSequence >= 0 && sequence != ((lastSequence + 1) and 0xFFFF)) {
-            size = 0
+        if (byteOffset > 0) {
+            // The camera's 0x0C restarts at every JPEG frame. Prefer it over the
+            // global packet sequence, which some firmware shares with ACK packets.
+            val startsFrame = framePacketIndex == 1 || (lastByteOffset > 0 && byteOffset < lastByteOffset)
+            val lostPacket = lastByteOffset > 0 && byteOffset != lastByteOffset + length
+            if (startsFrame || lostPacket) size = 0
+            lastByteOffset = byteOffset
+        } else {
+            // Legacy fallback for firmware that leaves 0x0C at zero.
+            if (lastSequence >= 0 && sequence != ((lastSequence + 1) and 0xFFFF)) {
+                size = 0
+            }
+            lastSequence = sequence
         }
-        lastSequence = sequence
 
         append(source, offset, length)
 

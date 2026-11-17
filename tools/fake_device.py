@@ -86,7 +86,8 @@ def video_packet(
     struct.pack_into("<H", packet, 0x03, seq)
     struct.pack_into("<H", packet, 0x05, len(packet))
     packet[0x07] = 0x03
-    struct.pack_into("<I", packet, 0x0C, offset)
+    # 0x0C is the end offset *inside the current frame*, e.g. 1400, 2800, ...
+    struct.pack_into("<I", packet, 0x0C, offset + length)
     struct.pack_into("<I", packet, 0x10, 73)  # raw battery ADC observed on hardware
     struct.pack_into("<H", packet, 0x1C, width)
     struct.pack_into("<H", packet, 0x1E, height)

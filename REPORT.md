@@ -166,7 +166,7 @@ sequenceDiagram
 | ---- | ----- | ------------------------------ |
 | 0x07 | u8    | 固定 `0x03`                    |
 | 0x08 | u32   | 恒 0（未使用）                 |
-| 0x0C | u32   | 累计字节偏移（= 序号 × 1400）  |
+| 0x0C | u32   | **本帧内**累计结束偏移（每帧重置，首包 1400） |
 | 0x10 | u32   | 电量/ADC 原始值（实测恒 73）   |
 | 0x1C | u16   | 宽（0x0280 = 640）             |
 | 0x1E | u16   | 高（0x01E0 = 480）             |
@@ -179,8 +179,13 @@ sequenceDiagram
 
 ```text
 on packet(type=3):
-    if seq != last+1: drop partial buffer      # 丢包即丢弃半帧
-    append payload to buffer
+    if frame_index == 1:                       # 新帧
+        drop partial buffer
+    elif offset != last_offset + payload_len:  # 0x0C 跳变 = 真丢包
+        drop partial buffer
+    last_offset = offset
+
+    append payload to buffer                   # 0x36..0x36+payload_len
     loop:
         s = index(buffer, FFD8)
         if s < 0: keep last byte; break
@@ -190,6 +195,8 @@ on packet(type=3):
         emit JPEG(buffer[:e+2])
         buffer = buffer[e+2:]
 ```
+
+> 若固件把 `0x0C` 置 0，则退化为按 16 位包序号 `seq+1` 判断丢包。
 
 ### 5.5 控制命令
 
@@ -211,7 +218,7 @@ on packet(type=3):
 | ------------------------------------------------------ | ----------------------------------- | ----------- |
 | SSID 含 `UDU`、密码 `XXX`                              | 实际 `zdeer earpick-3593`，开放网络 | ❌ 代码遗留 |
 | 分片序号 + 总片数，收满完成                            | `0x32` 是序号+1；帧边界靠 SOI/EOI   | ❌          |
-| `0x0C` = 整帧字节数                                    | 累计偏移                            | ❌          |
+| `0x0C` = 整帧字节数                                    | 本帧内累计结束偏移（每帧重置）      | ❌          |
 | `0x08` = 帧 ID                                         | 恒 0                                | ❌          |
 | `0x0081` 心跳标志可能是推流开关                        | 全零心跳即可出流                    | ⚠️ 非必需   |
 | 电量=ADC 原始值                                        | 值 73 观测一致，换算未知            | ⚠️ 推断     |

@@ -23,7 +23,9 @@ data class LinkState(
     val ledOn: Boolean = false,
     val mirror: Boolean = false,
     val packetsReceived: Long = 0,
+    val videoPacketsReceived: Long = 0,
     val framesReceived: Long = 0,
+    val bufferedBytes: Int = 0,
     val lastPacketAt: Long = 0,
     val failure: LinkFailure? = null,
 )

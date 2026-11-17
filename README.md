@@ -90,6 +90,7 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 2. 点「连接设备热点」，在系统弹窗中确认 `zdeer earpick-*`。
 3. Android 17+ 首次会请求「附近的设备」权限（本地网络）。
 4. 设备应答心跳后自动出图。找不到热点时，在设置里把 SSID 前缀改为 `UDU`（UDU 品牌设备）。
+5. 如果设备有回包但没有视频，先强制停止官方 App/其他客户端并重启采耳仪：该固件可能只向先注册的客户端推流。
 
 设备热点是**开放网络**，附近的人也能接入并收到同一路画面；这是固件限制，客户端只能提示，无法修复。
 
@@ -104,6 +105,21 @@ python3 tools/fake_device.py           # 0.0.0.0:40000，默认发送 tools/test
 ```
 
 脚本按真机格式回复心跳、20 fps 分片推流，并打印收到的补光/镜像/停流指令。
+
+调试构建也可以直接从命令行指定端点，跳过设置页：
+
+```bash
+adb shell am start -n moe.hexzii.earpick.debug/moe.hexzii.earpick.MainActivity \
+  --es moe.hexzii.earpick.dev_host 192.168.1.9 \
+  --ei moe.hexzii.earpick.dev_port 40000
+```
+
+等待页会显示 `接收 / 视频 / JPEG / 缓冲 / 解码失败` 计数：
+
+- 接收 0：报文没进应用，优先查网络绑定/VPN/热点。
+- 有接收、无视频：报文类型或端口不对。
+- 有视频、无 JPEG：分帧字段/丢包处理有问题。
+- 有 JPEG、解码失败：JPEG 格式或解码器问题。
 
 ## 权限
 

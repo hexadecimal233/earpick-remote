@@ -1,6 +1,7 @@
 package moe.hexzii.earpick.ui
 
 import android.graphics.Bitmap
+import android.util.Log
 import android.graphics.BitmapFactory
 import android.net.Network
 import androidx.compose.ui.graphics.ImageBitmap
@@ -69,6 +70,7 @@ data class UiState(
     val error: UiError? = null,
     val settings: Settings = Settings(),
     val savingSnapshot: Boolean = false,
+    val decodeFailures: Int = 0,
 ) {
     val isViewing: Boolean
         get() = phase == UiPhase.WaitingDevice || phase == UiPhase.Streaming
@@ -119,6 +121,7 @@ class EarpickViewModel(
                 phase = if (viaDeviceWifi) UiPhase.ConnectingWifi else UiPhase.Starting,
                 frame = null,
                 error = null,
+                decodeFailures = 0,
             )
         }
 
@@ -150,6 +153,16 @@ class EarpickViewModel(
         connect(preferredViaWifi)
     }
 
+    /** Debug-only entry point for automated tests: skip Wi-Fi and use a custom endpoint. */
+    fun connectDev(host: String, port: Int) {
+        currentSettings = currentSettings.copy(
+            devTargetEnabled = true,
+            devHost = host,
+            devPort = port,
+        )
+        connect(viaDeviceWifi = false)
+    }
+
     fun onHostStopped() {
         if (session != null) disconnect()
     }
@@ -163,6 +176,7 @@ class EarpickViewModel(
                 frame = null,
                 error = null,
                 savingSnapshot = false,
+                decodeFailures = 0,
             )
         }
     }
@@ -206,8 +220,13 @@ class EarpickViewModel(
         // Socket creation/binding is IO; never do it on the main thread.
         val newSession = withContext(Dispatchers.IO) {
             val address = InetAddress.getByName(host)
-            val transport = AndroidUdpTransport(address, port, network)
-            EarpickSession(transport, scope)
+            val localAddress = network?.let { wifi.localIpv4(it) }
+            val transport = AndroidUdpTransport(address, port, network, localAddress)
+            EarpickSession(
+                transport = transport,
+                scope = scope,
+                logger = { if (BuildConfig.DEBUG) Log.d("EarpickLink", it) },
+            )
         }
 
         if (attempt != connectAttempt) {
@@ -253,7 +272,11 @@ class EarpickViewModel(
         scope.launch(Dispatchers.Default) {
             newSession.frames.collect { jpeg ->
                 lastJpeg.set(jpeg)
-                decodeJpeg(jpeg)?.let { bitmap ->
+                val bitmap = decodeJpeg(jpeg)
+                if (bitmap == null) {
+                    Log.w("EarpickLink", "JPEG decode failed (${jpeg.size} bytes)")
+                    _ui.update { it.copy(decodeFailures = it.decodeFailures + 1) }
+                } else {
                     _ui.update { it.copy(frame = bitmap.asImageBitmap()) }
                 }
             }

@@ -11,6 +11,7 @@ object TestPackets {
         batteryAdc: Int = 73,
         width: Int = 640,
         height: Int = 480,
+        byteOffset: Int = -1,
     ): ByteArray {
         val packet = ByteArray(EarpickProtocol.VIDEO_HEADER_SIZE + payload.size)
         packet[0] = 0x63
@@ -19,7 +20,7 @@ object TestPackets {
         putU16(packet, 0x03, sequence)
         putU16(packet, 0x05, packet.size)
         packet[0x07] = 0x03
-        putU32(packet, 0x0C, sequence * 1400)
+        putU32(packet, 0x0C, if (byteOffset > 0) byteOffset else payload.size)
         putU32(packet, 0x10, batteryAdc)
         putU16(packet, 0x1C, width)
         putU16(packet, 0x1E, height)

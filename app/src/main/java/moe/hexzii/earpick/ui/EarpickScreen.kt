@@ -549,6 +549,29 @@ private fun WaitingLayer(state: UiState) {
             style = MaterialTheme.typography.bodySmall,
             textAlign = TextAlign.Center,
         )
+        Spacer(Modifier.height(14.dp))
+        if (state.link.packetsReceived > 0 && state.link.videoPacketsReceived == 0L) {
+            Text(
+                text = stringResource(R.string.waiting_no_video_hint),
+                color = Color(0xFFFFC857),
+                style = MaterialTheme.typography.bodySmall,
+                textAlign = TextAlign.Center,
+            )
+            Spacer(Modifier.height(8.dp))
+        }
+        Text(
+            text = stringResource(
+                R.string.diag_format,
+                state.link.packetsReceived,
+                state.link.videoPacketsReceived,
+                state.link.framesReceived,
+                state.link.bufferedBytes,
+                state.decodeFailures,
+            ),
+            color = Color.White.copy(alpha = 0.45f),
+            style = MaterialTheme.typography.labelSmall,
+            textAlign = TextAlign.Center,
+        )
     }
 }
 

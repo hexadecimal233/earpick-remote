@@ -36,6 +36,7 @@ class EarpickSession(
     private val scope: CoroutineScope,
     private val config: Config = Config(),
     private val clock: () -> Long = { System.nanoTime() / 1_000_000L },
+    private val logger: (String) -> Unit = {},
 ) {
     data class Config(
         val heartbeatIntervalMs: Long = 1_000,
@@ -62,6 +63,9 @@ class EarpickSession(
 
     private var job: Job? = null
     private var commandJob: Job? = null
+    private var packetsLogged = 0
+    private var videosLogged = 0
+    private var framesLogged = 0
 
     @Volatile
     private var closed = false
@@ -157,18 +161,30 @@ class EarpickSession(
 
                 if (bytesRead > 0) {
                     bytesInWindow += bytesRead
+                    val type = EarpickPacket.typeOf(buffer, bytesRead)
+                    if (packetsLogged < 8) {
+                        logger("rx len=$bytesRead type=${type?.let { "0x%02x".format(it) }}")
+                        packetsLogged++
+                    }
                     val frames = handlePacket(buffer, bytesRead)
                     _state.update {
                         it.copy(
                             phase = if (frames.isEmpty()) it.phase else LinkPhase.Streaming,
                             packetsReceived = it.packetsReceived + 1,
+                            videoPacketsReceived = it.videoPacketsReceived +
+                                if (type == EarpickProtocol.TYPE_VIDEO) 1 else 0,
                             framesReceived = it.framesReceived + frames.size,
+                            bufferedBytes = framer.bufferedBytes,
                             lastPacketAt = now,
                         )
                     }
                     if (frames.isNotEmpty()) {
                         lastVideoAt = now
                         framesInWindow += frames.size
+                        if (framesLogged < 3) {
+                            logger("frame bytes=${frames.first().size} frames=${frames.size}")
+                            framesLogged++
+                        }
                         frames.forEach(_frames::tryEmit)
                     }
                 } else if (_state.value.phase == LinkPhase.Streaming &&
@@ -194,9 +210,11 @@ class EarpickSession(
             }
         } catch (e: CancellationException) {
             throw e
-        } catch (_: IOException) {
+        } catch (error: IOException) {
+            logger("io error: ${error.message}")
             fail(LinkFailure.Transport)
-        } catch (_: RuntimeException) {
+        } catch (error: RuntimeException) {
+            logger("runtime error: ${error.message}")
             fail(LinkFailure.Unknown)
         }
     }
@@ -212,6 +230,13 @@ class EarpickSession(
         }
 
         val chunk = EarpickPacket.parseVideo(buffer, length) ?: return emptyList()
+        if (videosLogged < 5) {
+            logger(
+                "video seq=${chunk.sequence} off=${chunk.byteOffset} " +
+                    "idx=${chunk.framePacketIndex} payload=${chunk.payloadLength}",
+            )
+            videosLogged++
+        }
         _state.update {
             it.copy(
                 batteryAdc = chunk.batteryAdc,
@@ -219,6 +244,13 @@ class EarpickSession(
                 height = chunk.height,
             )
         }
-        return framer.feed(buffer, chunk.payloadOffset, chunk.payloadLength, chunk.sequence)
+        return framer.feed(
+            source = buffer,
+            offset = chunk.payloadOffset,
+            length = chunk.payloadLength,
+            sequence = chunk.sequence,
+            byteOffset = chunk.byteOffset,
+            framePacketIndex = chunk.framePacketIndex,
+        )
     }
 }

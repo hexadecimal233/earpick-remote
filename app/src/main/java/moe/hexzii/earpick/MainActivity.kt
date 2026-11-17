@@ -20,6 +20,17 @@ class MainActivity : ComponentActivity() {
                 EarpickRoute(viewModel)
             }
         }
+
+        if (BuildConfig.DEBUG) {
+            intent.getStringExtra(EXTRA_DEV_HOST)?.let { host ->
+                viewModel.connectDev(host, intent.getIntExtra(EXTRA_DEV_PORT, 40000))
+            }
+        }
+    }
+
+    private companion object {
+        const val EXTRA_DEV_HOST = "moe.hexzii.earpick.dev_host"
+        const val EXTRA_DEV_PORT = "moe.hexzii.earpick.dev_port"
     }
 
     override fun onStop() {

@@ -30,6 +30,8 @@
     <string name="error_title">连接异常</string>
     <string name="waiting_body">热点已连接，正在发送心跳。摄像头应答后画面会自动出现。</string>
     <string name="waiting_reconnecting">正在重连…</string>
+    <string name="waiting_no_video_hint">设备有回包但没有视频：设备可能只向先注册的客户端推流。请先强制停止官方 App/其他客户端，重启采耳仪后再试。</string>
+    <string name="diag_format">接收 %1$d · 视频 %2$d · JPEG %3$d · 缓冲 %4$d B · 解码失败 %5$d</string>
     <string name="streaming_device_fallback">采耳仪</string>
     <string name="chip_fps">%1$d fps</string>
     <string name="chip_kbps">%1$d KB/s</string>

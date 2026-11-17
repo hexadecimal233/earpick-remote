@@ -30,6 +30,8 @@
     <string name="error_title">Connection problem</string>
     <string name="waiting_body">The hotspot is connected. Heartbeats are being sent; video starts when the camera answers.</string>
     <string name="waiting_reconnecting">Reconnecting…</string>
+    <string name="waiting_no_video_hint">The camera answers commands but sends no video. Close the official app or any other client, power-cycle the camera, then retry.</string>
+    <string name="diag_format">RX %1$d · video %2$d · JPEG %3$d · buffer %4$d B · decode errors %5$d</string>
     <string name="streaming_device_fallback">Earpick camera</string>
     <string name="chip_fps">%1$d fps</string>
     <string name="chip_kbps">%1$d KB/s</string>

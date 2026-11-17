@@ -4,6 +4,8 @@ import android.content.Context
 import android.net.ConnectivityManager
 import android.net.Network
 import android.net.NetworkCapabilities
+import java.net.Inet4Address
+import java.net.InetAddress
 import android.net.NetworkRequest
 import android.net.wifi.WifiNetworkSpecifier
 import android.os.PatternMatcher
@@ -47,6 +49,10 @@ class DeviceWifiConnector(context: Context) {
 
         val networkCallback = object : ConnectivityManager.NetworkCallback() {
             override fun onAvailable(network: Network) {
+                // App-scoped Wi-Fi networks are often secondary to the primary
+                // internet connection; bind the process so the camera's replies are
+                // routed back through this network, not the default one.
+                runCatching { connectivityManager.bindProcessToNetwork(network) }
                 if (continuation.isActive) continuation.resume(network)
             }
 
@@ -57,6 +63,7 @@ class DeviceWifiConnector(context: Context) {
             }
 
             override fun onLost(network: Network) {
+                runCatching { connectivityManager.bindProcessToNetwork(null) }
                 _lost.tryEmit(Unit)
             }
         }
@@ -73,11 +80,18 @@ class DeviceWifiConnector(context: Context) {
         continuation.invokeOnCancellation { release() }
     }
 
+    fun localIpv4(network: Network): InetAddress? =
+        connectivityManager.getLinkProperties(network)
+            ?.linkAddresses
+            ?.firstOrNull { it.address is Inet4Address }
+            ?.address
+
     /** Drops the app-scoped network request; the system may disconnect the hotspot. */
     fun release() {
         callback?.let { callback ->
             runCatching { connectivityManager.unregisterNetworkCallback(callback) }
         }
         callback = null
+        runCatching { connectivityManager.bindProcessToNetwork(null) }
     }
 }

@@ -100,6 +100,70 @@ class MjpegFramerTest {
     }
 
     @Test
+    fun `offset continuity survives global sequence jumps`() {
+        val framer = MjpegFramer()
+        val first = byteArrayOf(0xFF.toByte(), 0xD8.toByte(), 0x01)
+        val second = byteArrayOf(0x02, 0xFF.toByte(), 0xD9.toByte())
+
+        assertTrue(
+            framer.feed(first, 0, first.size, sequence = 10, byteOffset = 3, framePacketIndex = 1)
+                .isEmpty(),
+        )
+        val frames = framer.feed(
+            second,
+            0,
+            second.size,
+            sequence = 999,
+            byteOffset = 6,
+            framePacketIndex = 2,
+        )
+
+        assertEquals(1, frames.size)
+        assertArrayEquals(
+            byteArrayOf(0xFF.toByte(), 0xD8.toByte(), 0x01, 0x02, 0xFF.toByte(), 0xD9.toByte()),
+            frames.single(),
+        )
+    }
+
+    @Test
+    fun `offset gap drops the partial frame`() {
+        val framer = MjpegFramer()
+        assertTrue(
+            framer.feed(
+                byteArrayOf(0xFF.toByte(), 0xD8.toByte(), 0x01),
+                0,
+                3,
+                sequence = 1,
+                byteOffset = 3,
+                framePacketIndex = 1,
+            ).isEmpty(),
+        )
+        // Packet 2 is missing: the next offset jumps from 3 to 8.
+        assertTrue(
+            framer.feed(
+                byteArrayOf(0x02, 0x03),
+                0,
+                2,
+                sequence = 3,
+                byteOffset = 8,
+                framePacketIndex = 3,
+            ).isEmpty(),
+        )
+
+        val jpeg = byteArrayOf(0xFF.toByte(), 0xD8.toByte(), 0x09, 0xFF.toByte(), 0xD9.toByte())
+        val frames = framer.feed(
+            jpeg,
+            0,
+            jpeg.size,
+            sequence = 4,
+            byteOffset = jpeg.size,
+            framePacketIndex = 1,
+        )
+        assertEquals(1, frames.size)
+        assertArrayEquals(jpeg, frames.single())
+    }
+
+    @Test
     fun `recovers after garbage without a start marker`() {
         val framer = MjpegFramer()
         val garbage = ByteArray(4096) { 0x11 }
