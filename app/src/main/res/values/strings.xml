@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Earpick</string>
+
+    <string name="connect_title">Earpick viewer</string>
+    <string name="connect_subtitle">Third-party viewer for zdeer / UDU otoscope cameras. Video is processed on this device only.</string>
+    <string name="connect_primary">Join device hotspot</string>
+    <string name="connect_manual">Already on the hotspot — connect directly</string>
+    <string name="connect_waiting_wifi">Confirm the Wi-Fi network in the system dialog…</string>
+    <string name="connect_cancel">Cancel</string>
+    <string name="connect_preparing">Starting the link…</string>
+    <string name="connect_permission_note">On Android 17+, allow “Nearby devices” so the app can reach the camera on the local network.</string>
+    <string name="security_note">The camera hotspot has no password. Anyone nearby can join it and view the same stream — use it somewhere private.</string>
+
+    <string name="settings">Settings</string>
+    <string name="settings_ssid_prefix">Hotspot SSID prefix</string>
+    <string name="settings_ssid_help">The system dialog only lists networks whose SSID starts with this text. Use “UDU” for UDU-branded hardware.</string>
+    <string name="settings_dev_section">Developer (debug builds)</string>
+    <string name="settings_dev_enable">Direct target override</string>
+    <string name="settings_dev_help">Skip the hotspot request and stream from a custom UDP endpoint. Useful with a fake device on the host.</string>
+    <string name="settings_dev_host">Host</string>
+    <string name="settings_dev_port">Port</string>
+    <string name="settings_save">Save</string>
+    <string name="settings_invalid">Enter a valid host and port (1–65535).</string>
+    <string name="settings_open_system">App permissions</string>
+
+    <string name="waiting_title">Waiting for the camera</string>
+    <string name="status_live">Live</string>
+    <string name="status_waiting">Waiting for stream</string>
+    <string name="error_title">Connection problem</string>
+    <string name="waiting_body">The hotspot is connected. Heartbeats are being sent; video starts when the camera answers.</string>
+    <string name="waiting_reconnecting">Reconnecting…</string>
+    <string name="streaming_device_fallback">Earpick camera</string>
+    <string name="chip_fps">%1$d fps</string>
+    <string name="chip_kbps">%1$d KB/s</string>
+    <string name="chip_adc">ADC %1$d</string>
+    <string name="chip_adc_description">Raw battery ADC value reported by the camera</string>
+
+    <string name="preview_description">Live camera preview</string>
+    <string name="control_led">Light</string>
+    <string name="control_mirror">Mirror</string>
+    <string name="control_snapshot">Snapshot</string>
+    <string name="control_disconnect">Disconnect</string>
+    <string name="control_retry">Retry</string>
+    <string name="zoom_hint">Pinch to zoom · double-tap to reset</string>
+
+    <string name="snapshot_saved">Snapshot saved to Pictures/Earpick</string>
+    <string name="snapshot_failed">Could not save the snapshot</string>
+
+    <string name="error_permission_body">Allow “Nearby devices” for this app so it can reach the camera hotspot.</string>
+    <string name="error_wifi_unavailable">No matching hotspot was found. Power on the camera, or adjust the SSID prefix in Settings.</string>
+    <string name="error_network">Could not open the video link. Make sure the phone is on the camera hotspot and the camera is on.</string>
+    <string name="error_wifi_lost">The camera hotspot disconnected.</string>
+    <string name="error_unknown">Something went wrong: %1$s</string>
+    <string name="action_open_settings">Open app settings</string>
+</resources>
